@@ -1,56 +1,93 @@
 import streamlit as st
 from openai import OpenAI
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+st.set_page_config(
+    page_title="Tech Power AI Business Assistant",
+    page_icon="⚡",
+    layout="centered",
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
+SYSTEM_PROMPT = """
+You are Tech Power AI Business Assistant.
+Your job is to help small businesses understand AI automation opportunities.
+Be practical, friendly, and business-focused.
+When useful, ask for the client's business type, current workflow, pain points, and contact details.
+Never claim a feature is already integrated unless the code actually supports it.
+"""
+
+BUSINESS_MODES = {
+    "General AI Consultant": "Help the user discover practical automation opportunities for their business.",
+    "Customer Support FAQ": "Answer customer support style questions clearly and politely.",
+    "Lead Capture": "Guide the conversation toward collecting name, business type, problem, budget, and contact method.",
+    "Content Ideas": "Generate practical social media and marketing content ideas for small businesses.",
+}
+
+st.title("⚡ Tech Power AI Business Assistant")
+st.write(
+    "A practical AI assistant demo for Tech Power Co.,Ltd. "
+    "Use it to show clients how AI can support customer service, lead capture, content creation, and workflow automation."
+)
+
+with st.sidebar:
+    st.header("Settings")
+    openai_api_key = st.text_input("OpenAI API Key", type="password")
+    model = st.text_input("Model", value="gpt-4o-mini")
+    mode = st.selectbox("Assistant Mode", list(BUSINESS_MODES.keys()))
+
+    st.divider()
+    st.subheader("Tech Power Offer")
+    st.markdown(
+        """
+        - AI chatbot setup
+        - Lead capture automation
+        - Customer support workflow
+        - AI content system
+        - Business process automation
+        """
+    )
+
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+    st.info("Add your OpenAI API key in the sidebar to start the demo.", icon="🗝️")
+    st.stop()
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+client = OpenAI(api_key=openai_api_key)
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": (
+                "မင်္ဂလာပါ 👋 I am Tech Power AI Business Assistant. "
+                "Tell me what kind of business you run, and I can suggest useful AI automation ideas."
+            ),
+        }
+    ]
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+prompt = st.chat_input("Ask about AI automation for your business...")
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-        # Generate a response using the OpenAI API.
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT + "\nCurrent mode: " + BUSINESS_MODES[mode]},
+        *[
+            {"role": m["role"], "content": m["content"]}
+            for m in st.session_state.messages
+        ],
+    ]
+
+    with st.chat_message("assistant"):
         stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
+            model=model,
+            messages=messages,
             stream=True,
         )
+        response = st.write_stream(stream)
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append({"role": "assistant", "content": response})
